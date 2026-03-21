@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
 import google.generativeai as genai
-from datetime import datetime
 
 # --- 1. DATABASE & AI SETUP ---
 def get_engine():
@@ -14,22 +13,22 @@ def get_engine():
     db_url = f"postgresql://{user}:{pw}@{host}:{port}/{db}?sslmode=require"
     return create_engine(db_url)
 
-# Setup Gemini AI - Updated for 2026 Model Standards
+# Configure AI with the High-Quota 2026 Model
 genai.configure(api_key=st.secrets["gemini"]["api_key"])
-# Using gemini-2.0-flash which replaces the retired 1.5 versions
-model = genai.GenerativeModel('gemini-2.0-flash')
+# 'gemini-2.5-flash' provides the best balance of speed and free quota
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 # --- 2. APP LAYOUT ---
-st.set_page_config(page_title="EcoTwin AI Dashboard", page_icon="🌿", layout="wide")
+st.set_page_config(page_title="EcoTwin AI", page_icon="🌿", layout="wide")
 st.title("🌿 EcoTwin AI Cloud Monitoring")
-st.caption("Wildlife Ecology & Management Project")
+st.caption("Wildlife Ecology & Management - Project 2026")
 
 # --- 3. SIDEBAR: DATA ENTRY ---
 with st.sidebar:
     st.header("📍 Field Data Entry")
-    temp = st.number_input("Temp (°C)", value=25.0, step=0.1)
-    hum = st.number_input("Humidity (%)", value=50.0, step=0.1)
-    soil = st.number_input("Soil Moisture (%)", value=30.0, step=0.1)
+    temp = st.number_input("Temp (°C)", value=25.0)
+    hum = st.number_input("Humidity (%)", value=50.0)
+    soil = st.number_input("Soil Moisture (%)", value=30.0)
     
     if st.button("Push to Aiven Cloud"):
         try:
@@ -59,21 +58,21 @@ try:
         
         # --- 5. AI CHAT SECTION ---
         st.markdown("---")
-        st.subheader("🤖 Chat with EcoTwin AI")
+        st.subheader("🤖 Chat with EcoTwin AI (2.5 Flash)")
         user_query = st.text_input("Ask about your garden readings:")
 
         if user_query:
-            with st.spinner("Consulting Gemini 2.0..."):
-                context = f"Context: Temp {latest['temperature_c']}°C, Humidity {latest['humidity_pct']}%, Soil {latest['soil_moisture_pct']}%."
+            with st.spinner("Analyzing with 2.5 Flash..."):
+                context = f"Current Environment: Temp {latest['temperature_c']}°C, Humidity {latest['humidity_pct']}%, Soil {latest['soil_moisture_pct']}%."
                 prompt = f"As a Wildlife Ecology expert, answer: {user_query}. {context}"
                 
                 try:
                     response = model.generate_content(prompt)
                     st.info(response.text)
                 except Exception as ai_err:
-                    st.error(f"AI Connection Error: {ai_err}")
+                    st.error(f"AI Quota Issue: {ai_err}. (Try again in 1 minute)")
 
-        with st.expander("📂 Raw Data Log"):
+        with st.expander("📂 Raw History"):
             st.dataframe(df, use_container_width=True)
 except Exception as e:
     st.error(f"System Error: {e}")
