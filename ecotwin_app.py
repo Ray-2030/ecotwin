@@ -3,10 +3,10 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 import google.generativeai as genai
 from PIL import Image
-from io import BytesIO
+from streamlit_js_eval import streamlit_js_eval
 from datetime import datetime
 
-# --- 1. DATABASE & AI SETUP ---
+# --- 1. DATABASE SETUP & AUTO-FIX ---
 def get_engine():
     user = st.secrets["connections"]["postgresql"]["username"]
     pw = st.secrets["connections"]["postgresql"]["password"]
@@ -16,100 +16,80 @@ def get_engine():
     db_url = f"postgresql://{user}:{pw}@{host}:{port}/{db}?sslmode=require"
     return create_engine(db_url)
 
-# Setup Gemini AI
+def init_db():
+    """Automatically adds missing columns to bypass Aiven website errors."""
+    engine = get_engine()
+    with engine.begin() as conn:
+        # This list adds all the new columns we need for GPS and Lux
+        columns = ["lux", "lat", "lon"]
+        for col in columns:
+            try:
+                conn.execute(text(f"ALTER TABLE eco_logs ADD COLUMN {col} FLOAT;"))
+            except:
+                pass # If column already exists, it just skips it safely
+
+# Run the database fix immediately
+init_db()
+
+# --- 2. AI SETUP ---
 genai.configure(api_key=st.secrets["gemini"]["api_key"])
-# Using 2.5 Flash for the best multimodal/image performance
+# Using 2.5 Flash to solve the 429 'Quota' error in image_df4d23
 model = genai.GenerativeModel('gemini-2.5-flash')
 
-# Utility: Convert DataFrame to CSV
-@st.cache_data
-def convert_df(df):
-    return df.to_csv(index=False).encode('utf-8')
+# --- 3. APP UI & GPS ---
+st.set_page_config(page_title="EcoTwin Field Patrol", page_icon="🌍", layout="wide")
+location = streamlit_js_eval(js_expressions='navigator.geolocation.getCurrentPosition(success => { return {lat: success.coords.latitude, lon: success.coords.longitude} })', target_flatten=True, key='geo')
 
-# --- 2. APP LAYOUT ---
-st.set_page_config(page_title="EcoTwin AI", page_icon="🌿", layout="wide")
-st.title("🌿 EcoTwin AI: Visual Ecology Monitor")
-st.caption(f"Wolf's Wildlife Ecology Project • {datetime.now().strftime('%Y')}")
+st.title("🌍 EcoTwin Field Patrol")
+st.caption(f"Wildlife Ecology GIS Dashboard • {datetime.now().strftime('%Y')}")
 
-# --- 3. SIDEBAR: DATA ENTRY & EXPORT ---
+# --- 4. SIDEBAR: DATA ENTRY ---
 with st.sidebar:
-    st.header("📍 Field Data Entry")
-    temp = st.number_input("Temp (°C)", value=25.0)
-    hum = st.number_input("Humidity (%)", value=50.0)
-    soil = st.number_input("Soil Moisture (%)", value=30.0)
+    st.header("📋 Field Observations")
+    lux = st.number_input("Light Intensity (Lux)", min_value=0.0, value=500.0)
+    temp = st.number_input("Air Temp (°C)", value=25.0)
+    soil = st.slider("Soil Moisture (%)", 0, 100, 30)
     
-    if st.button("Push to Aiven Cloud"):
-        try:
-            engine = get_engine()
-            with engine.begin() as conn:
-                query = text("INSERT INTO eco_logs (temperature_c, humidity_pct, soil_moisture_pct) VALUES (:t, :h, :s)")
-                conn.execute(query, {"t": temp, "h": hum, "s": soil})
-            st.success("✅ Data Synced!")
-            st.balloons()
-        except Exception as e:
-            st.error(f"Sync Failed: {e}")
+    if location:
+        st.success(f"📍 GPS Locked: {round(location['lat'], 4)}, {round(location['lon'], 4)}")
+    else:
+        st.warning("📍 Waiting for GPS location...")
 
-    st.markdown("---")
-    st.header("📊 Export Report")
-    try:
-        engine = get_engine()
-        full_df = pd.read_sql("SELECT * FROM eco_logs ORDER BY recorded_at DESC", engine)
-        if not full_df.empty:
-            st.download_button("📥 Download CSV", data=convert_df(full_df), file_name="ecotwin_data.csv")
-    except:
-        pass
+    if st.button("🛰️ Sync Field Patrol to Cloud"):
+        if location:
+            try:
+                engine = get_engine()
+                with engine.begin() as conn:
+                    query = text("INSERT INTO eco_logs (temperature_c, soil_moisture_pct, lux, lat, lon) VALUES (:t, :s, :l, :lat, :lon)")
+                    conn.execute(query, {"t": temp, "s": soil, "l": lux, "lat": location['lat'], "lon": location['lon']})
+                st.success("✅ Patrol Synced!")
+                st.balloons()
+            except Exception as e:
+                st.error(f"Sync Error: {e}")
+        else:
+            st.error("Enable location on your phone!")
 
-# --- 4. MAIN DASHBOARD ---
+# --- 5. DASHBOARD ---
 try:
     engine = get_engine()
-    df = pd.read_sql("SELECT recorded_at, temperature_c, humidity_pct, soil_moisture_pct FROM eco_logs ORDER BY recorded_at DESC LIMIT 50", engine)
+    df = pd.read_sql("SELECT * FROM eco_logs ORDER BY recorded_at DESC LIMIT 100", engine)
     
     if not df.empty:
-        latest = df.iloc[0]
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Temperature", f"{latest['temperature_c']}°C")
-        col2.metric("Humidity", f"{latest['humidity_pct']}%")
-        col3.metric("Soil Moisture", f"{latest['soil_moisture_pct']}%")
+        st.subheader("🗺️ Sample Site Mapping")
+        # Filters out any rows that don't have GPS data yet
+        if 'lat' in df.columns and 'lon' in df.columns:
+            map_data = df.dropna(subset=['lat', 'lon'])
+            if not map_data.empty:
+                st.map(map_data[['lat', 'lon']])
         
-        st.subheader("Ecological Trends")
-        st.line_chart(df.set_index('recorded_at')[['temperature_c', 'humidity_pct', 'soil_moisture_pct']])
-
         st.markdown("---")
-        
-        # --- 5. NEW: VISUAL SOIL ANALYSIS ---
-        st.subheader("📸 AI Visual Soil Analysis")
-        st.write("Upload a photo of the soil to estimate moisture and health.")
-        
-        img_file = st.file_uploader("Capture soil photo", type=["jpg", "jpeg", "png"])
-        
+        st.subheader("📸 Visual Soil Scan")
+        img_file = st.file_uploader("Upload soil photo", type=["jpg", "png"])
         if img_file:
             img = Image.open(img_file)
-            st.image(img, caption="Field Sample", width=400)
-            
-            if st.button("Analyze Soil with Gemini"):
-                with st.spinner("Analyzing textures and color gradients..."):
-                    # Multi-modal prompt: Text + Image
-                    prompt = """
-                    As a Wildlife Ecology expert, analyze this soil image. 
-                    1. Estimate the moisture percentage based on color and clumping.
-                    2. Identify the soil type (Sandy, Loamy, Clay).
-                    3. Give a brief 'Eco-Health' recommendation for plants.
-                    """
-                    try:
-                        response = model.generate_content([prompt, img])
-                        st.success("Analysis Complete")
-                        st.info(response.text)
-                    except Exception as e:
-                        st.error(f"AI Error: {e}")
-
-        # --- 6. STANDARD CHAT ---
-        st.markdown("---")
-        st.subheader("🤖 Ecology Advisor Chat")
-        u_query = st.text_input("Ask a question about your environment:")
-        if u_query:
-            context = f"Current Data: Temp {latest['temperature_c']}°C, Soil {latest['soil_moisture_pct']}%."
-            res = model.generate_content(f"{u_query}. {context}")
-            st.write(res.text)
-
+            st.image(img, width=300)
+            if st.button("Run AI Soil Diagnostics"):
+                res = model.generate_content(["Analyze soil moisture/texture for an ecology report.", img])
+                st.info(res.text)
 except Exception as e:
-    st.error(f"System Error: {e}")
+    st.error(f"Display Error: {e}")
