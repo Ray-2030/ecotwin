@@ -1,171 +1,134 @@
 import streamlit as st
 import pandas as pd
-import pydeck as pdk
 from sqlalchemy import create_engine, text
 import google.generativeai as genai
 import hashlib
 from streamlit_js_eval import streamlit_js_eval
 from datetime import datetime
-import io
+import pytz # For Kenya EAT Time
 
-# --- 1. CORE CONFIGURATION ---
+# --- 1. CORE CONFIG & AI ---
 st.set_page_config(page_title="EcoTwin Sentinel", page_icon="🌿", layout="wide")
 
-# AI Setup: Using Gemini 3 Flash for high-speed 2026 multimodal reasoning
+# Using Gemini 3 Flash for Image + Text + Video output
 genai.configure(api_key=st.secrets["gemini"]["api_key"])
-model = genai.GenerativeModel('gemini-1.5-flash') 
+# Note: We use 'gemini-3-flash-preview' for integrated image generation
+model = genai.GenerativeModel('gemini-3-flash-preview')
 
 def get_engine():
     s = st.secrets["connections"]["postgresql"]
     return create_engine(f"postgresql://{s['username']}:{s['password']}@{s['host']}:{s['port']}/{s['database']}?sslmode=require")
 
-# --- 2. DATABASE AUTO-REPAIR ---
-# This bypasses Aiven's web interface errors by fixing the DB via code
-def auto_repair_db():
-    engine = get_engine()
-    with engine.begin() as conn:
-        # Create users table
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                username VARCHAR(50) UNIQUE NOT NULL,
-                password TEXT NOT NULL
-            );
-        """))
-        
-        # Create eco_logs table if missing
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS eco_logs (
-                id SERIAL PRIMARY KEY,
-                recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                temperature_c FLOAT,
-                soil_moisture_pct FLOAT,
-                lux FLOAT,
-                lat FLOAT,
-                lon FLOAT,
-                notes TEXT
-            );
-        """))
-        
-        # Add 'Wolf' user (Password: wolf2026)
-        wolf_hash = hashlib.sha256("wolf2026".encode()).hexdigest()
-        conn.execute(text("""
-            INSERT INTO users (username, password) 
-            VALUES ('Wolf', :hpw) 
-            ON CONFLICT (username) DO NOTHING;
-        """), {"hpw": wolf_hash})
-
-# Run repair on startup
-try:
-    auto_repair_db()
-except Exception as e:
-    st.error(f"Database Syncing... {e}")
-
-# --- 3. AUTHENTICATION ---
 def hash_pw(pw):
     return hashlib.sha256(str.encode(pw)).hexdigest()
 
+# --- 2. TIME & GREETING LOGIC ---
+kenya_tz = pytz.timezone('Africa/Nairobi')
+now_kenya = datetime.now(kenya_tz)
+current_hour = now_kenya.hour
+
+if current_hour < 12:
+    greeting = "Good morning"
+elif 12 <= current_hour < 18:
+    greeting = "Good afternoon"
+else:
+    greeting = "Good evening"
+
+# --- 3. THE LOGIN & ABOUT PAGE ---
 if "auth" not in st.session_state:
     st.session_state.auth = False
 
 if not st.session_state.auth:
-    # Centered Login UI with Logo
-    _, col2, _ = st.columns([1, 2, 1])
-    with col2:
-        try:
-            st.image("logo.png", use_container_width=True)
-        except:
-            st.warning("Logo file missing. Please upload logo.png to GitHub.")
-        
-        st.title("🔐 Sentinel Portal")
-        st.markdown("### Wildlife Monitoring • Kenya 2026")
-        
-        user_input = st.text_input("Username")
-        pw_input = st.text_input("Password", type="password")
-        
-        if st.button("Authorize Access", use_container_width=True):
-            engine = get_engine()
-            with engine.connect() as conn:
-                query = text("SELECT password FROM users WHERE username = :u")
-                res = conn.execute(query, {"u": user_input}).fetchone()
-                if res and res[0] == hash_pw(pw_input):
+    tab1, tab2 = st.tabs(["🔐 Login", "ℹ️ About EcoTwin"])
+    
+    with tab1:
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            try:
+                st.image("logo.png", use_container_width=True)
+            except:
+                st.info("EcoTwin Sentinel 2026")
+            
+            st.title("Sentinel Portal")
+            user_in = st.text_input("Username")
+            pw_in = st.text_input("Password", type="password")
+            
+            if st.button("Access System", use_container_width=True):
+                # Auto-check/create Wolf user
+                wolf_hash = "d7912061262d057a660ef707d8966838b002242171f1146747df346618520288"
+                if user_in == "Wolf" and hash_pw(pw_in) == wolf_hash:
                     st.session_state.auth = True
-                    st.session_state.user = user_input
-                    st.success("Access Granted!")
                     st.rerun()
                 else:
                     st.error("Invalid Credentials.")
+                    
+    with tab2:
+        st.header("About EcoTwin Sentinel")
+        st.write("""
+        EcoTwin is a state-of-the-art wildlife and ecological monitoring platform designed for 
+        conservationists in Kenya. Built as part of the WIEM 102 curriculum, it combines 
+        multimodal AI, GIS tagging, and real-time field data to protect biodiversity.
+        """)
+        st.info("Developed by: Wolfbazzu & Team")
     st.stop()
 
-# --- 4. MAIN DASHBOARD (After Login) ---
-st.title("🌿 EcoTwin Field Sentinel")
-st.sidebar.title(f"👤 {st.session_state.user}")
+# --- 4. THE MAIN HUB (After Login) ---
+st.sidebar.title(f"👤 {st.session_state.user if 'user' in st.session_state else 'Wolf'}")
+st.sidebar.write(f"📅 {now_kenya.strftime('%A, %d %B %Y')}")
+st.sidebar.write(f"⏰ {now_kenya.strftime('%H:%M')} EAT")
 
-# Grab GPS Location from Browser
-loc = streamlit_js_eval(js_expressions='navigator.geolocation.getCurrentPosition(s => { return {lat: s.coords.latitude, lon: s.coords.longitude} })', target_flatten=True, key='geo')
+if st.sidebar.button("Log Out"):
+    st.session_state.auth = False
+    st.title("Thank You!")
+    st.write("Sentinel systems shutting down... See you next time, Wolf.")
+    st.balloons()
+    st.stop()
 
-# --- 5. PROFESSIONAL SATELLITE GIS ---
-st.subheader("🗺️ Kenya Observation Network")
-try:
-    engine = get_engine()
-    df = pd.read_sql("SELECT lat, lon, notes, recorded_at FROM eco_logs WHERE lat IS NOT NULL", engine)
+st.title(f"🌿 {greeting}, Wolf!")
+st.write(f"Current Status: System Online | Location: Kenya")
+
+# --- 5. SMART PERMISSIONS & CAMERA ---
+st.subheader("📸 Field Intelligence")
+col_cam, col_info = st.columns(2)
+
+with col_cam:
+    img = st.camera_input("Capture Species or Garden Issue")
+    # Location request only when camera is used
+    loc = streamlit_js_eval(js_expressions='navigator.geolocation.getCurrentPosition(s => { return {lat: s.coords.latitude, lon: s.coords.longitude} })', target_flatten=True, key='geo')
+
+with col_info:
+    chat_query = st.text_input("Ask AI (e.g., 'Show me a Nandi Flame' or 'Where to buy seeds in Nairobi?')")
     
-    # Focus map on Kenya
-    view_state = pdk.ViewState(latitude=-1.28, longitude=36.82, zoom=6, pitch=40)
-    
-    # Red dots for tagged field observations
-    layer = pdk.Layer(
-        "ScatterplotLayer",
-        df,
-        get_position='[lon, lat]',
-        get_color='[200, 30, 30, 160]',
-        get_radius=7000,
-        pickable=True
-    )
+    if chat_query:
+        with st.spinner("EcoTwin AI is thinking..."):
+            # We tell Gemini to provide visuals if asked
+            response = model.generate_content(
+                f"User is in Kenya. Current time: {now_kenya}. Question: {chat_query}. "
+                "If user asks for an image, describe it vividly and generate it. "
+                "If they ask for seeds/supplies, give specific locations in Kenya."
+            )
+            st.markdown(response.text)
+            
+            # Handle multimodal output (Images/Videos)
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, 'inline_data'): # If AI generated an image
+                    st.image(part.inline_data.data, caption="AI Generated Image")
 
-    st.pydeck_chart(pdk.Deck(
-        map_style='mapbox://styles/mapbox/satellite-streets-v12',
-        initial_view_state=view_state,
-        layers=[layer],
-        tooltip={"text": "Observation: {notes}\nDate: {recorded_at}"}
-    ))
-except Exception as e:
-    st.info("Mapping system active. Log your first GPS tag to see pins.")
+if img:
+    with st.spinner("Analyzing field data..."):
+        res = model.generate_content(["Identify this Kenyan species and check health.", img])
+        st.success(res.text)
+        if loc:
+            st.info(f"📍 Sighting Tagged at: {loc['lat']}, {loc['lon']}")
 
-# --- 6. MULTILINGUAL VIDEO AI ---
+# --- 6. VIDEO DIAGNOSTICS ---
 st.markdown("---")
-st.subheader("🎥 AI Field Diagnostic (Video)")
-lang = st.radio("Response Language:", ["English", "Swahili", "Japanese"], horizontal=True)
-vid_file = st.file_uploader("Upload video of garden/wildlife issue", type=["mp4", "mov"])
-
-if vid_file:
-    with st.spinner(f"Analyzing in {lang}..."):
-        # Process video for immediate ecological troubleshooting
-        response = model.generate_content([
-            f"Identify any issues in this video related to plant health, animal behavior, or ecology. Provide solutions in {lang}.",
-            {"mime_type": "video/mp4", "data": vid_file.getvalue()}
+st.subheader("🎥 Garden Video Assistant")
+vid = st.file_uploader("Upload a video of your garden or 'chicas'", type=["mp4", "mov"])
+if vid:
+    with st.spinner("Processing video..."):
+        res = model.generate_content([
+            "Analyze this video for garden pests or animal health. Provide a step-by-step resolution.",
+            {"mime_type": "video/mp4", "data": vid.getvalue()}
         ])
-        st.success(response.text)
-
-# --- 7. SIDEBAR FIELD TOOLS ---
-with st.sidebar:
-    st.markdown("---")
-    st.header("📍 GIS Tagging")
-    field_notes = st.text_area("Observation Details")
-    
-    if st.button("🛰️ Sync GPS to Cloud"):
-        if loc and 'lat' in loc:
-            try:
-                with get_engine().begin() as conn:
-                    conn.execute(text("INSERT INTO eco_logs (lat, lon, notes) VALUES (:la, :lo, :n)"), 
-                                 {"la": loc['lat'], "lo": loc['lon'], "n": field_notes})
-                st.success("Tagged to Global Map!")
-                st.balloons()
-            except Exception as e:
-                st.error(f"Sync failed: {e}")
-        else:
-            st.warning("Waiting for GPS signal...")
-
-    if st.button("Logout"):
-        st.session_state.auth = False
-        st.rerun()
+        st.write(res.text)
