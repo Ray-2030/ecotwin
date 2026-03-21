@@ -17,27 +17,26 @@ def get_engine():
     return create_engine(db_url)
 
 def init_db():
-    """Automatically adds missing columns to bypass Aiven website errors."""
+    """Automatically creates the lat, lon, and lux columns if they are missing."""
     engine = get_engine()
     with engine.begin() as conn:
-        # This list adds all the new columns we need for GPS and Lux
-        columns = ["lux", "lat", "lon"]
-        for col in columns:
+        for col in ["lux", "lat", "lon"]:
             try:
                 conn.execute(text(f"ALTER TABLE eco_logs ADD COLUMN {col} FLOAT;"))
-            except:
-                pass # If column already exists, it just skips it safely
+            except Exception:
+                pass # Skips if column already exists
 
-# Run the database fix immediately
+# Run the fix once when the app starts
 init_db()
 
 # --- 2. AI SETUP ---
+# Updated to 2.5 Flash for better performance and 2026 quota limits
 genai.configure(api_key=st.secrets["gemini"]["api_key"])
-# Using 2.5 Flash to solve the 429 'Quota' error in image_df4d23
 model = genai.GenerativeModel('gemini-2.5-flash')
 
 # --- 3. APP UI & GPS ---
 st.set_page_config(page_title="EcoTwin Field Patrol", page_icon="🌍", layout="wide")
+# Requests GPS from your iPhone or Samsung
 location = streamlit_js_eval(js_expressions='navigator.geolocation.getCurrentPosition(success => { return {lat: success.coords.latitude, lon: success.coords.longitude} })', target_flatten=True, key='geo')
 
 st.title("🌍 EcoTwin Field Patrol")
@@ -46,6 +45,7 @@ st.caption(f"Wildlife Ecology GIS Dashboard • {datetime.now().strftime('%Y')}"
 # --- 4. SIDEBAR: DATA ENTRY ---
 with st.sidebar:
     st.header("📋 Field Observations")
+    # Values from your Physics Toolbox Sensor Suite
     lux = st.number_input("Light Intensity (Lux)", min_value=0.0, value=500.0)
     temp = st.number_input("Air Temp (°C)", value=25.0)
     soil = st.slider("Soil Moisture (%)", 0, 100, 30)
@@ -53,7 +53,7 @@ with st.sidebar:
     if location:
         st.success(f"📍 GPS Locked: {round(location['lat'], 4)}, {round(location['lon'], 4)}")
     else:
-        st.warning("📍 Waiting for GPS location...")
+        st.warning("📍 Waiting for GPS... (Check phone permissions)")
 
     if st.button("🛰️ Sync Field Patrol to Cloud"):
         if location:
@@ -67,16 +67,16 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Sync Error: {e}")
         else:
-            st.error("Enable location on your phone!")
+            st.error("Enable location access to save coordinates!")
 
-# --- 5. DASHBOARD ---
+# --- 5. MAIN DASHBOARD ---
 try:
     engine = get_engine()
     df = pd.read_sql("SELECT * FROM eco_logs ORDER BY recorded_at DESC LIMIT 100", engine)
     
     if not df.empty:
         st.subheader("🗺️ Sample Site Mapping")
-        # Filters out any rows that don't have GPS data yet
+        # Only maps points that have actual coordinates
         if 'lat' in df.columns and 'lon' in df.columns:
             map_data = df.dropna(subset=['lat', 'lon'])
             if not map_data.empty:
@@ -89,7 +89,7 @@ try:
             img = Image.open(img_file)
             st.image(img, width=300)
             if st.button("Run AI Soil Diagnostics"):
-                res = model.generate_content(["Analyze soil moisture/texture for an ecology report.", img])
+                res = model.generate_content(["As an ecology expert, analyze this soil moisture/texture.", img])
                 st.info(res.text)
 except Exception as e:
-    st.error(f"Display Error: {e}")
+    st.error(f"Dashboard Error: {e}")
