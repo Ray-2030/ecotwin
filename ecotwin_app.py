@@ -2,7 +2,9 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
 import google.generativeai as genai
+from PIL import Image
 from io import BytesIO
+from datetime import datetime
 
 # --- 1. DATABASE & AI SETUP ---
 def get_engine():
@@ -14,21 +16,22 @@ def get_engine():
     db_url = f"postgresql://{user}:{pw}@{host}:{port}/{db}?sslmode=require"
     return create_engine(db_url)
 
-# Setup Gemini AI 
+# Setup Gemini AI
 genai.configure(api_key=st.secrets["gemini"]["api_key"])
+# Using 2.5 Flash for the best multimodal/image performance
 model = genai.GenerativeModel('gemini-2.5-flash')
 
-# Utility: Convert DataFrame to CSV for Download
+# Utility: Convert DataFrame to CSV
 @st.cache_data
 def convert_df(df):
     return df.to_csv(index=False).encode('utf-8')
 
 # --- 2. APP LAYOUT ---
 st.set_page_config(page_title="EcoTwin AI", page_icon="🌿", layout="wide")
-st.title("🌿 EcoTwin AI Cloud Monitoring")
-st.caption("Wildlife Ecology & Management Project")
+st.title("🌿 EcoTwin AI: Visual Ecology Monitor")
+st.caption(f"Wolf's Wildlife Ecology Project • {datetime.now().strftime('%Y')}")
 
-# --- 3. SIDEBAR: DATA ENTRY & DOWNLOAD ---
+# --- 3. SIDEBAR: DATA ENTRY & EXPORT ---
 with st.sidebar:
     st.header("📍 Field Data Entry")
     temp = st.number_input("Temp (°C)", value=25.0)
@@ -41,28 +44,18 @@ with st.sidebar:
             with engine.begin() as conn:
                 query = text("INSERT INTO eco_logs (temperature_c, humidity_pct, soil_moisture_pct) VALUES (:t, :h, :s)")
                 conn.execute(query, {"t": temp, "h": hum, "s": soil})
-            st.success("✅ Saved to Cloud!")
+            st.success("✅ Data Synced!")
             st.balloons()
         except Exception as e:
             st.error(f"Sync Failed: {e}")
 
-    # --- NEW: DOWNLOAD SECTION ---
     st.markdown("---")
-    st.header("📊 Export Data")
+    st.header("📊 Export Report")
     try:
         engine = get_engine()
-        # Fetch all history for the download
         full_df = pd.read_sql("SELECT * FROM eco_logs ORDER BY recorded_at DESC", engine)
         if not full_df.empty:
-            csv_data = convert_df(full_df)
-            st.download_button(
-                label="📥 Download History (CSV)",
-                data=csv_data,
-                file_name=f"ecotwin_data_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv",
-            )
-        else:
-            st.info("No data available to download.")
+            st.download_button("📥 Download CSV", data=convert_df(full_df), file_name="ecotwin_data.csv")
     except:
         pass
 
@@ -73,30 +66,50 @@ try:
     
     if not df.empty:
         latest = df.iloc[0]
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Current Temp", f"{latest['temperature_c']}°C")
-        m2.metric("Humidity", f"{latest['humidity_pct']}%")
-        m3.metric("Soil Moisture", f"{latest['soil_moisture_pct']}%")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Temperature", f"{latest['temperature_c']}°C")
+        col2.metric("Humidity", f"{latest['humidity_pct']}%")
+        col3.metric("Soil Moisture", f"{latest['soil_moisture_pct']}%")
         
         st.subheader("Ecological Trends")
         st.line_chart(df.set_index('recorded_at')[['temperature_c', 'humidity_pct', 'soil_moisture_pct']])
-        
-        # --- 5. AI CHAT SECTION ---
+
         st.markdown("---")
-        st.subheader("🤖 Chat with EcoTwin AI")
-        user_query = st.text_input("Ask about your garden readings:")
+        
+        # --- 5. NEW: VISUAL SOIL ANALYSIS ---
+        st.subheader("📸 AI Visual Soil Analysis")
+        st.write("Upload a photo of the soil to estimate moisture and health.")
+        
+        img_file = st.file_uploader("Capture soil photo", type=["jpg", "jpeg", "png"])
+        
+        if img_file:
+            img = Image.open(img_file)
+            st.image(img, caption="Field Sample", width=400)
+            
+            if st.button("Analyze Soil with Gemini"):
+                with st.spinner("Analyzing textures and color gradients..."):
+                    # Multi-modal prompt: Text + Image
+                    prompt = """
+                    As a Wildlife Ecology expert, analyze this soil image. 
+                    1. Estimate the moisture percentage based on color and clumping.
+                    2. Identify the soil type (Sandy, Loamy, Clay).
+                    3. Give a brief 'Eco-Health' recommendation for plants.
+                    """
+                    try:
+                        response = model.generate_content([prompt, img])
+                        st.success("Analysis Complete")
+                        st.info(response.text)
+                    except Exception as e:
+                        st.error(f"AI Error: {e}")
 
-        if user_query:
-            with st.spinner("Analyzing..."):
-                context = f"Context: Temp {latest['temperature_c']}°C, Humidity {latest['humidity_pct']}%, Soil {latest['soil_moisture_pct']}%."
-                prompt = f"As a Wildlife Ecology expert, answer: {user_query}. {context}"
-                try:
-                    response = model.generate_content(prompt)
-                    st.info(response.text)
-                except Exception as ai_err:
-                    st.error(f"AI Quota Issue: {ai_err}")
+        # --- 6. STANDARD CHAT ---
+        st.markdown("---")
+        st.subheader("🤖 Ecology Advisor Chat")
+        u_query = st.text_input("Ask a question about your environment:")
+        if u_query:
+            context = f"Current Data: Temp {latest['temperature_c']}°C, Soil {latest['soil_moisture_pct']}%."
+            res = model.generate_content(f"{u_query}. {context}")
+            st.write(res.text)
 
-        with st.expander("📂 Raw History"):
-            st.dataframe(df, use_container_width=True)
 except Exception as e:
     st.error(f"System Error: {e}")
