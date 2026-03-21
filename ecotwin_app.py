@@ -2,26 +2,28 @@ import streamlit as st
 import pandas as pd
 import psycopg2
 from sqlalchemy import create_engine
+import google.generativeai as genai
 from datetime import datetime
 
-# --- DATABASE ENGINE SETUP ---
+# --- 1. DATABASE & AI SETUP ---
 def get_engine():
-    # Constructing the modern SQLAlchemy URL from your secrets
     user = st.secrets["connections"]["postgresql"]["username"]
     pw = st.secrets["connections"]["postgresql"]["password"]
     host = st.secrets["connections"]["postgresql"]["host"]
     port = st.secrets["connections"]["postgresql"]["port"]
     db = st.secrets["connections"]["postgresql"]["database"]
-    
     db_url = f"postgresql://{user}:{pw}@{host}:{port}/{db}?sslmode=require"
     return create_engine(db_url)
 
-# --- APP LAYOUT ---
-st.set_page_config(page_title="EcoTwin Dashboard", page_icon="🌿", layout="wide")
-st.title("🌿 EcoTwin Cloud Monitoring")
-st.info("Wildlife Ecology & Management - Digital Twin Project")
+# Setup Gemini AI
+genai.configure(api_key=st.secrets["gemini"]["api_key"])
+model = genai.GenerativeModel('gemini-pro')
 
-# --- SIDEBAR: DATA ENTRY ---
+# --- 2. APP LAYOUT ---
+st.set_page_config(page_title="EcoTwin AI Dashboard", page_icon="🌿", layout="wide")
+st.title("🌿 EcoTwin AI Cloud Monitoring")
+
+# --- 3. SIDEBAR: DATA ENTRY ---
 with st.sidebar:
     st.header("📍 Field Data Entry")
     temp = st.number_input("Temp (°C)", value=24.5, step=0.1)
@@ -39,28 +41,39 @@ with st.sidebar:
         except Exception as e:
             st.error(f"Sync Failed: {e}")
 
-# --- MAIN DASHBOARD: VISUALS ---
+# --- 4. MAIN DASHBOARD: VISUALS ---
 try:
     engine = get_engine()
-    # Pull latest 50 records
     df = pd.read_sql("SELECT recorded_at, temperature_c, humidity_pct, soil_moisture_pct FROM eco_logs ORDER BY recorded_at DESC LIMIT 50", engine)
     
     if not df.empty:
-        # Metric row for mobile-friendly view
         m1, m2, m3 = st.columns(3)
-        m1.metric("Current Temp", f"{df['temperature_c'].iloc[0]}°C")
-        m2.metric("Humidity", f"{df['humidity_pct'].iloc[0]}%")
-        m3.metric("Soil Moisture", f"{df['soil_moisture_pct'].iloc[0]}%")
+        latest = df.iloc[0]
+        m1.metric("Current Temp", f"{latest['temperature_c']}°C")
+        m2.metric("Humidity", f"{latest['humidity_pct']}%")
+        m3.metric("Soil Moisture", f"{latest['soil_moisture_pct']}%")
         
-        # Charts
         st.subheader("Ecological Trends")
         st.line_chart(df.set_index('recorded_at')[['temperature_c', 'humidity_pct', 'soil_moisture_pct']])
         
-        # Raw Data Table
+        # --- 5. AI ASSISTANT SECTION ---
+        st.markdown("---")
+        st.subheader("🤖 Chat with EcoTwin AI")
+        user_query = st.text_input("Ask about your garden (e.g., 'Is my soil too dry?')")
+
+        if user_query:
+            with st.spinner("Analyzing ecological data..."):
+                # We give the AI the actual data so it can be specific!
+                context = f"The current temperature is {latest['temperature_c']}°C, humidity is {latest['humidity_pct']}%, and soil moisture is {latest['soil_moisture_pct']}%."
+                prompt = f"As a Wildlife Ecology expert, answer this: {user_query}. Context: {context}"
+                
+                response = model.generate_content(prompt)
+                st.write(response.text)
+
         with st.expander("📂 View Raw History"):
             st.dataframe(df, use_container_width=True)
     else:
-        st.warning("Cloud database is empty. Add your first field reading in the sidebar!")
+        st.warning("Database is empty. Log your first reading!")
 
 except Exception as e:
-    st.error(f"Database Offline: {e}")
+    st.error(f"System Error: {e}")
