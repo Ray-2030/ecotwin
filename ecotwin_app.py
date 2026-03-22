@@ -26,27 +26,32 @@ with st.container(border=True):
     c1, c2 = st.columns(2)
     with c1:
         if st.button("Unlock Portal", use_container_width=True, type="primary"):
-            # --- THE FIX: ADMIN BYPASS ---
-            # Type 'Wolf' as ID and 'WolfAdmin@2026' as Key
-            admin_h = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
             
-            if u_in.lower() == "wolf" and hash_pw(p_in) == admin_h:
-                st.session_state.auth, st.session_state.user = True, "Wolf (Admin)"
+            # --- EMERGENCY ADMIN BYPASS (NO HASHING) ---
+            # This will work even if the database is dead
+            if u_in.lower() == "wolf" and p_in == "WolfAdmin@2026":
+                st.session_state.auth = True
+                st.session_state.user = "Wolf (Admin)"
+                st.success("Admin Bypass Successful!")
                 st.switch_page("pages/3_🌿_Sentinel_Hub.py")
+            
+            # --- REGULAR USER LOGIN ---
             else:
                 try:
                     with get_engine().connect() as conn:
                         res = conn.execute(text("SELECT password FROM users WHERE username = :u"), {"u": u_in}).fetchone()
                         if res and res[0] == hash_pw(p_in):
-                            st.session_state.auth, st.session_state.user = True, u_in
+                            st.session_state.auth = True
+                            st.session_state.user = u_in
                             st.switch_page("pages/3_🌿_Sentinel_Hub.py")
-                        else: st.error("Access Denied.")
-                except: st.error("Database is warming up... try in 10s")
+                        else: 
+                            st.error("Access Denied: Check your Key.")
+                except: 
+                    st.error("Database is warming up... try again in 10s")
                 
     with c2:
         if st.button("Join the Pride", use_container_width=True):
-            # This handles the StreamlitAPIException path error
             try:
                 st.switch_page("pages/1_✨_Join_Pride.py")
             except:
-                st.error("Error: Check if file 'pages/1_✨_Join_Pride.py' exists on GitHub!")
+                st.error("Path Error: Ensure pages/1_✨_Join_Pride.py exists on GitHub.")
