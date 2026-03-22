@@ -1,59 +1,27 @@
 import streamlit as st
 import pandas as pd
-import requests
-from sqlalchemy import create_engine, text
+import pydeck as pdk
 
-st.set_page_config(page_title="Sentinel Live Map", page_icon="📍", layout="wide")
+st.title("📍 Field Intelligence: Heatmap")
 
-# --- WEATHER API ---
-def get_nairobi_weather():
-    try:
-        url = "https://api.open-meteo.com/v1/forecast?latitude=-1.28&longitude=36.82&current_weather=true"
-        res = requests.get(url).json()
-        return res['current_weather']
-    except:
-        return None
+# Sample Data (In a real app, this comes from your SQL sightings table)
+data = pd.DataFrame({
+    'lat': [-1.286, -1.292, -0.5, 0.0, -1.3],
+    'lon': [36.817, 36.821, 37.0, 36.0, 34.8],
+    'weight': [10, 20, 5, 15, 30]
+})
 
-# --- DATABASE ENGINE ---
-def get_engine():
-    s = st.secrets["connections"]["postgresql"]
-    return create_engine(
-        f"postgresql://{s['username']}:{s['password']}@{s['host']}:{s['port']}/{s['database']}?sslmode=require",
-        pool_pre_ping=True,
-        connect_args={'connect_timeout': 30}
-    )
+view_state = pdk.ViewState(latitude=-1.28, longitude=36.81, zoom=6, pitch=50)
 
-st.title("📍 Sentinel Live Deployment Map")
+layer = pdk.Layer(
+    "HeatmapLayer",
+    data,
+    get_position='[lon, lat]',
+    get_weight='weight',
+    aggregation=pdk.types.String("SUM"),
+)
 
-# Weather Widget
-weather = get_nairobi_weather()
-if weather:
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Nairobi Temp", f"{weather['temperature']}°C")
-    c2.metric("Wind Speed", f"{weather['windspeed']} km/h")
-    c3.metric("Status", "Clear Skies" if weather['weathercode'] == 0 else "Cloudy")
+st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_state))
 
-st.markdown("---")
-
-# --- MAPPING LOGIC ---
-try:
-    with get_engine().connect() as conn:
-        df = pd.read_sql(text("SELECT species, ranger FROM sightings"), conn)
-        
-        if not df.empty:
-            # Generate random visual scatter around Nairobi for current sightings
-            import numpy as np
-            df['latitude'] = -1.286 + np.random.uniform(-0.05, 0.05, len(df))
-            df['longitude'] = 36.817 + np.random.uniform(-0.05, 0.05, len(df))
-            
-            st.subheader("Recent Field Observations")
-            st.map(df, color="#2E7D32")
-            st.dataframe(df[['ranger', 'species']], use_container_width=True)
-        else:
-            st.info("No GPS data reported yet. Use the Hub to scan animals!")
-            
-except Exception:
-    st.error("Map layer connection lost. Central database is likely warming up.")
-
-if st.button("⬅️ Return to Hub"):
-    st.switch_page("pages/3_Sentinel_Hub.py")
+# Weather Overlay Placeholder
+st.sidebar.info("🌦️ Ambience: 24°C | Wind: 12km/h SE")

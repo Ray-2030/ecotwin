@@ -4,5 +4,6 @@ sqlalchemy
 psycopg2-binary
 gTTS
 pandas
-requests
-pytz
+plotly
+pydeck
+numpy
