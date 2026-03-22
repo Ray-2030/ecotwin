@@ -4,8 +4,8 @@ import pandas as pd
 
 st.set_page_config(page_title="Species Explorer", page_icon="🐦")
 st.title("🔍 Interactive Species Guide")
-st.write("Hover over the segments to see ecology explanations.")
 
+# Ensure the column names here match the path=['Level', 'Type', 'Name'] exactly
 data = {
     "Level": ["Fauna", "Fauna", "Fauna", "Fauna"],
     "Type": ["Birds", "Birds", "Mammals", "Mammals"],
@@ -18,15 +18,21 @@ data = {
     ]
 }
 
-fig = px.sunburst(pd.DataFrame(data), path=['Level', 'Type', 'Name'], 
-                  hover_data={'Info': True},
+df = pd.DataFrame(data)
+
+# 'hover_data' tells Plotly which columns to show when you move your cursor
+fig = px.sunburst(df, 
+                  path=['Level', 'Type', 'Name'], 
+                  values=[1, 1, 1, 1], # Ensures segments are equal size
+                  hover_data={'Info': True, 'Level': False, 'Type': False},
                   color='Type', 
                   color_discrete_map={'Birds': '#00f2fe', 'Mammals': '#2E7D32'})
 
-fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", font_color="white", margin=dict(t=0, l=0, r=0, b=0))
-st.plotly_chart(fig, use_container_width=True)
+fig.update_layout(
+    paper_bgcolor="rgba(0,0,0,0)", 
+    plot_bgcolor="rgba(0,0,0,0)",
+    font_color="white", 
+    margin=dict(t=0, l=0, r=0, b=0)
+)
 
-st.divider()
-st.subheader("🕶️ AR Species Training")
-st.image("https://cdn-icons-png.flaticon.com/512/1391/1391424.png", width=80)
-st.caption("Point your mobile camera at a flat surface to see 3D wildlife models.")
+st.plotly_chart(fig, use_container_width=True)
