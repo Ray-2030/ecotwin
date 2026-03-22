@@ -2,37 +2,41 @@ import streamlit as st
 import plotly.express as px
 import pandas as pd
 
-st.set_page_config(page_title="Species Explorer", page_icon="🐦")
+st.set_page_config(page_title="Species Explorer", layout="wide")
+
 st.title("🔍 Interactive Species Guide")
 
-# Ensure the column names here match the path=['Level', 'Type', 'Name'] exactly
+# Updated data with complete 'Info' strings to fix tooltip errors
 data = {
-    "Level": ["Fauna", "Fauna", "Fauna", "Fauna"],
-    "Type": ["Birds", "Birds", "Mammals", "Mammals"],
-    "Name": ["Fish Eagle", "Grey Crane", "Black Rhino", "Mountain Bongo"],
+    "labels": ["Fauna", "Mammals", "Birds", "Mountain Bongo", "Grey Crane", "Black Rhino"],
+    "parents": ["", "Fauna", "Fauna", "Mammals", "Birds", "Mammals"],
+    "values": [10, 2, 2, 1, 1, 1],
     "Info": [
-        "Apex lake predator. Known for its distinct white head.",
-        "Kenya's national icon of grace, found in wetlands.",
-        "Critically endangered. Monitored for anti-poaching safety.",
-        "Rare forest antelope. Native to the Aberdare ranges."
+        "Kenyan Biodiversity Base", 
+        "Endemic and endangered mammals", 
+        "Avian species monitoring", 
+        "Critically endangered (~130 remain)", 
+        "Rapid wetland habitat loss", 
+        "Priority poaching surveillance"
     ]
 }
 
 df = pd.DataFrame(data)
 
-# 'hover_data' tells Plotly which columns to show when you move your cursor
-fig = px.sunburst(df, 
-                  path=['Level', 'Type', 'Name'], 
-                  values=[1, 1, 1, 1], # Ensures segments are equal size
-                  hover_data={'Info': True, 'Level': False, 'Type': False},
-                  color='Type', 
-                  color_discrete_map={'Birds': '#00f2fe', 'Mammals': '#2E7D32'})
-
-fig.update_layout(
-    paper_bgcolor="rgba(0,0,0,0)", 
-    plot_bgcolor="rgba(0,0,0,0)",
-    font_color="white", 
-    margin=dict(t=0, l=0, r=0, b=0)
+# Building the Sunburst Chart with corrected hover data
+fig = px.sunburst(
+    df,
+    names='labels',
+    parents='parents',
+    values='values',
+    hover_data={'Info': True},
+    color='labels',
+    color_discrete_sequence=px.colors.qualitative.Prism
 )
 
+fig.update_layout(margin=dict(t=0, l=0, r=0, b=0), height=600)
+
 st.plotly_chart(fig, use_container_width=True)
+
+if st.button("⬅️ Back to Hub"):
+    st.switch_page("pages/3_Sentinel_Hub.py")
