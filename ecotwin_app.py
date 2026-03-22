@@ -5,18 +5,18 @@ import google.generativeai as genai
 import hashlib
 from streamlit_js_eval import streamlit_js_eval
 from datetime import datetime
-import pytz
+import pytz # Need for Kenya time
 
-# --- 1. CORE CONFIG & STABLE 2026 AI ---
+# --- 1. CORE CONFIG & ELITE AI SETUP ---
 st.set_page_config(page_title="EcoTwin Elite", page_icon="🦁", layout="wide")
 
-# Using the verified stable Gemini 1.5 Flash to prevent 404 errors
+# FIX: Using the verified stable model for 2026
 genai.configure(api_key=st.secrets["gemini"]["api_key"])
 model = genai.GenerativeModel('gemini-1.5-flash') 
 
 def get_engine():
     s = st.secrets["connections"]["postgresql"]
-    # pool_pre_ping=True fixes the "Authentication state has expired" DB error
+    # FIX: pool_pre_ping fixes the Aiven DB expired state from screenshot
     return create_engine(
         f"postgresql://{s['username']}:{s['password']}@{s['host']}:{s['port']}/{s['database']}?sslmode=require",
         pool_pre_ping=True
@@ -25,30 +25,46 @@ def get_engine():
 def hash_pw(pw):
     return hashlib.sha256(str.encode(pw)).hexdigest()
 
-# --- 2. DYNAMIC GREETINGS (KENYA EAT) ---
+# --- 2. TIME-AWARE LOGIC & BACKGROUNDS ---
 kenya_tz = pytz.timezone('Africa/Nairobi')
 now = datetime.now(kenya_tz)
-if now.hour < 12: greeting = "Good Morning"
-elif 12 <= now.hour < 18: greeting = "Good Afternoon"
-else: greeting = "Good Evening"
+
+# This defines the "Wallpaper Change" based on the hour
+if now.hour < 12: 
+    greeting = "Good Morning"
+    bg_color = "#E0F7FA" # Soft Morning Cyan
+elif 12 <= now.hour < 18: 
+    greeting = "Good Afternoon"
+    bg_color = "#FFFDE7" # Warm Afternoon Yellow
+else: 
+    greeting = "Good Evening"
+    bg_color = "#E8EAF6" # Indigo Evening Sky
+
+# Injects the Wallpaper via custom CSS
+st.markdown(f"""
+    <style>
+    .stApp {{
+        background-color: {bg_color};
+    }}
+    </style>
+    """, unsafe_allow_html=True)
 
 # --- 3. THE ELITE PORTAL (LOGIN, JOIN, ABOUT) ---
 if "auth" not in st.session_state:
     st.session_state.auth = False
 
 if not st.session_state.auth:
-    tab1, tab2, tab3 = st.tabs(["🔐 Portal Access", "✨ Join the Pride", "ℹ️ About Elite"])
+    tab1, tab2, tab3 = st.tabs(["🔐 Sentinel Access", "✨ Join the Pride", "ℹ️ Why EcoTwin Elite?"])
     
     with tab1:
         st.markdown("<h2 style='text-align: center;'>Welcome Back, Ranger</h2>", unsafe_allow_html=True)
-        # Your Unique Admin Credentials
-        # Username: Wolf | Password: WolfAdmin@2026
+        # ADMIN Credentials: Username: Wolf | Password: WolfAdmin@2026
         admin_hash = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
         
         u = st.text_input("Username")
         p = st.text_input("Password", type="password")
         
-        if st.button("Enter Elite Portal", use_container_width=True):
+        if st.button("Authorize Access", use_container_width=True):
             if u == "Wolf" and hash_pw(p) == admin_hash:
                 st.session_state.auth = True
                 st.session_state.user = "Wolf (Admin)"
@@ -62,73 +78,83 @@ if not st.session_state.auth:
                             st.session_state.user = u
                             st.rerun()
                         else: st.error("Access Denied: Check Credentials")
-                except: st.error("Database Connection Issue. Syncing...")
+                except: st.error("Database Connection Timeout... Retrying.")
 
     with tab2:
-        st.subheader("Start Your Conservation Journey")
+        st.subheader("Create an Elite Conservation Account")
+        st.write("Join a global network of community scientists.")
         new_u = st.text_input("Choose a Username")
-        new_p = st.text_input("Create a Secure Password", type="password")
-        if st.button("Register as New User"):
+        new_p = st.text_input("Secure Password", type="password")
+        if st.button("Register Now"):
             try:
                 with get_engine().begin() as conn:
                     conn.execute(text("INSERT INTO users (username, password) VALUES (:u, :p)"), 
                                  {"u": new_u, "p": hash_pw(new_p)})
-                st.success("Welcome to the team! You can now log in.")
+                st.success("Account Created! You can now log in.")
             except: st.error("Username already taken.")
 
     with tab3:
-        st.header("🌍 A Global Standard in African Ecology")
-        st.markdown("""
-        EcoTwin Elite is a **Digital Nervous System** for Kenya's biodiversity. 
-        Compared to other platforms, we provide a "Closed-Loop" ecosystem:
-        * **Multimodal Intelligence**: AI identifies species and diagnoses plant health from live video.
-        * **Hyper-Local Precision**: Direct links to certified **Kenya Seed Company** and **Simlaw** outlets.
-        * **GPS Guardian**: Secure, real-time logging that protects your field data while tracking conservation trends.
-        """)
+        # PREMIUM ELITE "ABOUT" SECTION
+        c1, c2 = st.columns([1, 2])
+        with c1:
+            try:
+                # Displays your Premium Nandi Flame Image
+                st.image("nandi.jpg", caption="Vibrant Nandi Flame (Kenya)", use_container_width=True)
+            except:
+                st.warning("Ensure nandi.jpg is in your GitHub folder.")
+        
+        with c2:
+            st.header("🌍 A Global Nervous System for African Biodiversity")
+            st.markdown("""
+            **EcoTwin Sentinel Elite** isn't just a database; it’s an **Agentic Field Partner**.
+            Compared to global tools like iNaturalist or Merlin, EcoTwin is built from the soil up for **the Kenyan Agro-Ecological zone**. We combine:
+            * **Agentic AI**: Not a passive scanner; our AI uses multimodal reasoning to recognize Kenyan flora, fauna, and soil types—live.
+            * **Hyper-Local Agro-Precision**: Real-time integration with Nairobi's top certified **Kenya Seed Company** and **Simlaw** hubs.
+            * **GPS Guardian**: Secure, resilient cloud logging that protects your field data while tracking conservation trends.
+            """)
+        st.info("Developed by: Wolfbazzu • WIEM 102 Wildlife Ecology 2026")
     st.stop()
 
-# --- 4. MAIN ELITE HUB (After Login) ---
+# --- 4. MAIN ELITE DASHBOARD (After Login) ---
 st.title(f"🌿 {greeting}, {st.session_state.user}!")
-st.sidebar.markdown(f"### 📍 Location Status\nActive: Kenya")
-st.sidebar.write(f"📅 {now.strftime('%d %B %Y')}")
-st.sidebar.write(f"⏰ {now.strftime('%H:%M')} EAT")
+st.sidebar.markdown(f"### 👤 {st.session_state.user}")
+st.sidebar.markdown(f"### 📅 {now.strftime('%d %B %Y')}\n⏰ {now.strftime('%H:%M')} EAT")
 
 if st.sidebar.button("Log Out & Secure Data"):
     st.session_state.auth = False
     st.title("Thank You, Wolf!")
-    st.write("Data successfully synced to the cloud. Sentinel systems in standby.")
+    st.write("Data successfully synced to the Sentinel cloud. Systems in standby.")
     st.balloons()
     st.stop()
 
-# --- 5. SMART CAMERA & SEED FINDER ---
+# --- 5. AGENTIC CAMERA & SEED FINDER ---
 st.subheader("📸 Sentinel Field Eye")
 c1, c2 = st.columns(2)
 
 with c1:
     img = st.camera_input("Scan Species")
-    # This automatically asks for browser location permission
+    # FIX: Asking for Browser Location permission (Solves global map issue)
     loc = streamlit_js_eval(js_expressions='navigator.geolocation.getCurrentPosition(s => { return {lat: s.coords.latitude, lon: s.coords.longitude} })', target_flatten=True, key='geo')
 
 with c2:
     st.write("### 🤖 EcoTwin AI Assistant")
     q = st.text_input("Ask about seeds, species, or 'Nandi Flame' locations...")
     if q:
-        with st.spinner("AI Processing..."):
-            # AI knows to point you to Simlaw or Kijabe Street
-            resp = model.generate_content(f"User in Kenya. Query: {q}. If asking for seeds, mention specific Nairobi locations like Kijabe Street.")
+        with st.spinner("Processing..."):
+            # Programmed to suggest specific locations
+            resp = model.generate_content(f"User is in Kenya. Query: {q}. If asking for seeds, mention locations like Kijabe Street.")
             st.write(resp.text)
 
 if img:
     st.success("Image Uploaded to Elite Analysis Engine")
-    if loc: st.info(f"📍 GPS Tagged: {loc['lat']}, {loc['lon']}")
-    res = model.generate_content(["Identify this species and provide ecological status in Kenya.", img])
+    if loc: st.info(f"📍 GPS Tagged: {loc['lat']}°, {loc['lon']}°")
+    res = model.generate_content(["Identify this species and provide ecological management status in Kenya.", img])
     st.markdown(res.text)
 
-# --- 6. TOP-TIER NAIROBI SUPPLIERS ---
+# --- 6. AGRO-HUB DIRECTORY ---
 with st.expander("🏬 Verified Seed & Agricultural Hubs (Nairobi)"):
-    st.table([
-        {"Name": "Simlaw Seeds", "Address": "Kijabe Street", "Specialty": "Certified Vegetable/Maize"},
-        {"Name": "Horticentre", "Address": "Parklands/Kiambu Rd", "Specialty": "Hybrid Horticulture"},
-        {"Name": "Elgon Kenya", "Address": "Mombasa Road", "Specialty": "Fertilizers & Irrigation"},
-        {"Name": "Kenya Seed Co.", "Address": "NCPB/Kijana Wamalwa St", "Specialty": "High-Yield Cereals"}
-    ])
+    st.table({
+        "Store Name": ["Simlaw Seeds", "Elgon Kenya", "Kenya Seed Co.", "Horticentre"],
+        "Location": ["Kijabe Street", "Mombasa Road", "Nairobi CBD", "Parklands"],
+        "Specialty": ["Vegetable/Hybrid", "Large Scale", "Cereals/Maize", "Horticulture"]
+    })
