@@ -1,28 +1,31 @@
 import streamlit as st
 
-st.set_page_config(page_title="Ranger Academy", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="Drone Command", layout="wide")
 
-st.title("🎓 Sentinel Academy & Drone Command")
+st.title("🚁 Drone 'Sentinel-X' Live Link")
+st.markdown("---")
 
-st.info("🛰️ Encrypted Satellite Uplink Established. Ghost Mode Active.")
+# --- FEATURES 41-50: DRONE & TRAINING ---
+col1, col2 = st.columns([2, 1])
 
-# Updated to a stable, high-quality wildlife drone video
-st.subheader("🚁 Drone 'Sentinel-X' Live Link")
-if st.button("🚀 Launch Surveillance Drone"):
-    st.video("https://www.youtube.com/watch?v=306u9L_8x8A") 
-    st.caption("🔴 LIVE FEED: High-Altitude Surveillance of the Savanna.")
+with col1:
+    # Using a high-quality Vimeo link (More stable for Streamlit)
+    st.video("https://vimeo.com/226343940") 
+    st.caption("🔴 STABLE UPLINK: Sentinel Satellite 6 (Sector Mara)")
+
+with col2:
+    st.subheader("🕹️ Drone Dashboard")
+    st.progress(85, text="Battery: 85%")
+    st.write("**Sensors:** Thermal, Acoustic, Lidar")
+    st.write("**Wind Speed:** 12 km/h")
+    if st.button("🔄 Sync Flight Path"): st.toast("New flight path uploaded.")
 
 st.markdown("---")
 
-# Ranger Quiz Section
-st.subheader("🧠 ID Challenge: Track Identification")
-choice = st.radio("Identify this track:", ["Hyena", "Leopard", "Lion", "Cheetah"])
-if st.button("Check Answer"):
-    if choice == "Leopard":
-        st.success("🎯 Correct! Leopard tracks show a distinct tri-lobed pad.")
-        st.balloons()
-    else:
-        st.error("❌ Incorrect. Try again, Ranger.")
+st.subheader("🎓 Field Skill Assessment")
+skill = st.radio("Choose a skill to test:", ["Track ID", "Behavior Analysis", "Emergency First Aid"])
+if st.button("Begin Training Module"):
+    st.write(f"Loading {skill} simulation... please standby.")
 
 if st.button("⬅️ Return to Hub"):
     st.switch_page("pages/3_Sentinel_Hub.py")
