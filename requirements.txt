@@ -1,4 +1,5 @@
 streamlit
+streamlit-lottie
 google-generativeai
 sqlalchemy
 psycopg2-binary
@@ -10,3 +11,5 @@ numpy
 geocoder
 feedparser
 qrcode
+requests
+pytz

@@ -1,38 +1,38 @@
 import streamlit as st
-import hashlib
-from sqlalchemy import create_engine, text
+import datetime
+import pytz
 
-st.set_page_config(page_title="Sentinel Alpha Portal", page_icon="🛡️", layout="centered")
+# 1. SET KENYA TIME & AUTO-NIGHT LOGIC
+kenya_tz = pytz.timezone('Africa/Nairobi')
+hour = datetime.datetime.now(kenya_tz).hour
+is_night = hour >= 18 or hour < 6  # Night is 6PM to 6AM
 
-# --- STEP 1: CYBER-SAFARI CSS THEME ---
-st.markdown("""
+st.set_page_config(page_title="Sentinel Alpha", page_icon="🛡️")
+
+# 2. GLOBAL CSS (Night Vision + Glowing Buttons)
+night_bg = "linear-gradient(135deg, #051605, #0a200a)"
+day_bg = "linear-gradient(135deg, #0f2027, #203a43, #2c5364)"
+theme_color = "#00FF00" if is_night else "#00f2fe"
+
+st.markdown(f"""
 <style>
-    .stApp { background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); color: white; }
-    [data-testid="stSidebar"] { background-color: rgba(32, 58, 67, 0.9); border-right: 2px solid #00f2fe; }
-    .stButton>button {
-        background: linear-gradient(45deg, #2E7D32, #00f2fe);
-        color: white; border-radius: 25px; border: none;
-        padding: 10px 24px; font-weight: bold;
-        box-shadow: 0 4px 15px rgba(0, 242, 254, 0.4);
-    }
-    .stTextInput>div>div>input { background-color: rgba(255,255,255,0.1); color: white; border: 1px solid #00f2fe; }
+    .stApp {{ background: {night_bg if is_night else day_bg}; color: white; }}
+    /* Glowing Cyber-Ecology Buttons */
+    div.stButton > button {{
+        border: 2px solid {theme_color} !important;
+        background-color: transparent !important;
+        color: white !important;
+        box-shadow: 0 0 10px {theme_color};
+    }}
 </style>
 """, unsafe_allow_html=True)
 
-# Branding
-st.image("https://cdn-icons-png.flaticon.com/512/3062/3062250.png", width=80)
-st.title("🛡️ Sentinel Alpha")
+st.title("🛡️ Sentinel Alpha: Mission Start")
+st.write(f"Current Status: {'🌙 Night Patrol Active' if is_night else '☀️ Day Surveillance Active'}")
 
-# Login Logic
+# Login
 with st.container(border=True):
-    st.subheader("Ranger Authentication")
-    u_in = st.text_input("Ranger ID")
-    p_in = st.text_input("Security Key", type="password")
-    
-    if st.button("Unlock Portal", use_container_width=True):
-        if u_in.lower() == "wolf" and p_in == "WolfAdmin@2026":
-            st.session_state.auth = True
-            st.session_state.user = "Wolf (Admin)"
-            st.switch_page("pages/3_Sentinel_Hub.py")
-        else:
-            st.error("Access Denied.")
+    u = st.text_input("Ranger Callsign")
+    if st.button("Initialize Link"):
+        st.session_state.user = u
+        st.switch_page("pages/3_Sentinel_Hub.py")

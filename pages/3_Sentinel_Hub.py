@@ -1,56 +1,45 @@
 import streamlit as st
+from streamlit_lottie import st_lottie
+import requests
 import google.generativeai as genai
-import numpy as np
-import datetime
-import geocoder 
-import pytz      
+import datetime, pytz, geocoder
 
-# --- PAGE CONFIG ---
-st.set_page_config(page_title="Sentinel Hub", page_icon="🌿", layout="wide")
+# --- PAGE SETUP ---
+st.set_page_config(page_title="Command Hub", layout="wide")
 
-# --- LIVE CONTEXT: TIME, DATE, & LOCATION ---
-kenya_tz = pytz.timezone('Africa/Nairobi')
-kenya_now = datetime.datetime.now(kenya_tz)
-current_date = kenya_now.strftime("%d %B %Y")
-current_time = kenya_now.strftime("%H:%M:%S")
+# Lottie Animation Loader
+def load_lottie(url):
+    r = requests.get(url)
+    return r.json() if r.status_code == 200 else None
 
-try:
-    g = geocoder.ip('me')
-    loc_city = g.city if g.city else "Rift Valley"
-    loc_coords = f"{g.latlng[0]:.4f}, {g.latlng[1]:.4f}" if g.latlng else "-1.2863, 36.8172"
-except Exception:
-    loc_city = "Kenya (Field Post)"
-    loc_coords = "-1.2863, 36.8172"
-
-# --- SIDEBAR NAVIGATION ---
+# --- SIDEBAR (The 25-Feature Navigation) ---
 with st.sidebar:
+    st_lottie(load_lottie("https://assets10.lottiefiles.com/packages/lf20_m6cu96ze.json"), height=100)
     st.title("🌲 Ranger Tools")
-    st.markdown("---")
-    if st.button("📍 Sightings Map", use_container_width=True): st.switch_page("pages/5_Sightings_Map.py")
-    if st.button("🔍 Species Guide", use_container_width=True): st.switch_page("pages/8_Species_Guide.py")
-    if st.button("📕 My Pokédex", use_container_width=True): st.switch_page("pages/7_Pokedex.py")
-    if st.button("📓 Field Notes", use_container_width=True): st.switch_page("pages/9_Field_Notes.py")
     
-    # Integrated link to the new report page
-    if st.button("📊 Ecology Report Tools", use_container_width=True): 
-        st.switch_page("pages/10_Generate_Report.py")
+    if st.button("📍 Heatmap"): st.switch_page("pages/5_Sightings_Map.py")
+    if st.button("🔍 Species Guide"): st.switch_page("pages/8_Species_Guide.py")
+    if st.button("📕 Pokédex"): st.switch_page("pages/7_Pokedex.py")
+    if st.button("📓 Field Notes"): st.switch_page("pages/9_Field_Notes.py")
+    st.markdown("---")
+    st.subheader("🛠️ Advanced")
+    if st.button("🎮 Ranger Console"): st.switch_page("pages/11_Ranger_Console.py")
+    if st.button("📊 QR Report Tool"): st.switch_page("pages/10_Generate_Report.py")
+    if st.button("🛡️ Advanced Intel"): st.switch_page("pages/12_Advanced_Intel.py")
 
-# --- MAIN DASHBOARD ---
-col_logo, col_title = st.columns([1, 5])
-with col_logo:
-    st.image("https://cdn-icons-png.flaticon.com/512/3062/3062250.png", width=80)
-with col_title:
-    st.title("🛡️ Sentinel Alpha Command")
+# --- LIVE METRICS ---
+tz = pytz.timezone('Africa/Nairobi')
+now = datetime.datetime.now(tz)
+g = geocoder.ip('me')
 
-m1, m2, m3 = st.columns(3)
-m1.metric("Date", current_date)
-m2.metric("EAT Time", current_time)
-m3.metric(f"Location: {loc_city}", loc_coords)
+c1, c2, c3 = st.columns(3)
+c1.metric("Date", now.strftime("%d %b %Y"))
+c2.metric("EAT Time", now.strftime("%H:%M"))
+c3.metric("Location", g.city if g.city else "Rift Valley")
 
-st.markdown("---")
-
-# --- AI SCANNER ---
-img = st.camera_input("Scan Wildlife for ID")
+# --- SCANNER ---
+st.divider()
+img = st.camera_input("Field Scanner")
 if img:
-    st.write("Processing field scan...")
-    # Your Gemini logic here
+    st.info("AI identifying species... (Latin names & Facts arriving)")
+    # (Your Gemini Logic here)
