@@ -1,33 +1,33 @@
 import streamlit as st
-import hashlib
-from sqlalchemy import create_engine, text
+import pandas as pd
 
-st.set_page_config(page_title="Join the Pride", page_icon="✨")
+st.set_page_config(page_title="Join the Pride", page_icon="🦁")
 
-def get_engine():
-    s = st.secrets["connections"]["postgresql"]
-    return create_engine(f"postgresql://{s['username']}:{s['password']}@{s['host']}:{s['port']}/{s['database']}?sslmode=require")
+st.title("🦁 Join the Sentinel Pride")
+st.markdown("Register your Ranger ID to sync field sightings with the team.")
 
-st.title("✨ Join the Sentinel Pride")
-st.write("Register as a new Ranger to begin monitoring.")
-
-with st.form("reg_form", clear_on_submit=True):
-    new_u = st.text_input("Choose Ranger ID (Username)").strip()
-    new_p = st.text_input("Choose Security Key (Password)", type="password").strip()
-    submit = st.form_submit_button("Register")
+# --- REGISTRATION FORM ---
+with st.form("ranger_reg"):
+    ranger_name = st.text_input("Ranger Name (e.g., Wolf)", placeholder="Enter your callsign...")
+    role = st.selectbox("Field Role", ["Wildlife Ecologist", "Software Dev", "Data Analyst", "Lead Ranger"])
+    location_pref = st.text_input("Primary Observation Post", value="Rift Valley")
+    
+    submit = st.form_submit_button("Initialize Sync")
 
 if submit:
-    if new_u and new_p:
-        try:
-            h_pw = hashlib.sha256(new_p.encode()).hexdigest()
-            with get_engine().begin() as conn:
-                conn.execute(text("CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)"))
-                conn.execute(text("INSERT INTO users (username, password) VALUES (:u, :p)"), {"u": new_u, "p": h_pw})
-            st.success("Registration successful! Return to the Portal to login.")
-        except:
-            st.error("This Ranger ID is already active in the Pride.")
+    if ranger_name:
+        # Saving to session_state so other pages (like the Hub) know who is logged in
+        st.session_state.logged_in = True
+        st.session_state.ranger_id = ranger_name
+        st.session_state.role = role
+        
+        st.success(f"Welcome to the Pride, Ranger {ranger_name}! Connection established.")
+        st.balloons()
+        
+        # Redirect to the Hub
+        if st.button("Go to Command Hub"):
+            st.switch_page("pages/3_Sentinel_Hub.py")
     else:
-        st.warning("All fields are required.")
+        st.error("Please enter a Ranger Name to continue.")
 
-if st.button("⬅️ Back to Portal"):
-    st.switch_page("ecotwin_app.py")
+st.info("💡 Tip: Your Ranger ID will be attached to every sighting you log in the Field Notes.")
