@@ -1,7 +1,8 @@
 streamlit
-pandas
+google-generativeai
 sqlalchemy
 psycopg2-binary
-google-generativeai
-Pillow
-streamlit-js-eval
+gTTS
+pandas
+requests
+pytz
