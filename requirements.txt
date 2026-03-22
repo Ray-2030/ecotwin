@@ -7,3 +7,5 @@ pandas
 plotly
 pydeck
 numpy
+geocoder
+feedparser

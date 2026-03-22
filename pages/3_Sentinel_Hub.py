@@ -3,11 +3,30 @@ import google.generativeai as genai
 from sqlalchemy import create_engine, text
 import numpy as np
 import datetime
+import geocoder  # Added for live location
+import pytz      # Added for accurate Kenyan time
 
-# --- PAGE CONFIG MUST BE FIRST ---
+# --- PAGE CONFIG ---
 st.set_page_config(page_title="Sentinel Hub", page_icon="🌿", layout="wide")
 
-# --- NIGHT VISION & UI THEME ---
+# --- LIVE CONTEXT: TIME, DATE, & LOCATION ---
+# Set to East Africa Time (EAT)
+kenya_tz = pytz.timezone('Africa/Nairobi')
+kenya_now = datetime.datetime.now(kenya_tz)
+current_date = kenya_now.strftime("%d %B %Y")
+current_time = kenya_now.strftime("%H:%M:%S")
+
+# Auto-detect location via IP
+try:
+    g = geocoder.ip('me')
+    # Default to Rift Valley/Nairobi if sensor is blocked
+    loc_city = g.city if g.city else "Rift Valley"
+    loc_coords = f"{g.latlng[0]:.4f}, {g.latlng[1]:.4f}" if g.latlng else "-1.2863, 36.8172"
+except Exception:
+    loc_city = "Kenya (Field Post)"
+    loc_coords = "-1.2863, 36.8172"
+
+# --- UI THEME & NIGHT VISION ---
 night_mode = st.sidebar.toggle("🌙 Night Vision Mode")
 bg = "linear-gradient(135deg, #051605, #0a200a)" if night_mode else "linear-gradient(135deg, #0f2027, #203a43, #2c5364)"
 txt = "#00FF00" if night_mode else "white"
@@ -22,48 +41,36 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR NAVIGATION & TOOLS ---
+# --- SIDEBAR NAVIGATION ---
 with st.sidebar:
     st.title("🌲 Ranger Tools")
     
-    if st.button("🚨 ACTIVATED DETERRENT"):
+    if st.button("🚨 ACTIVATED DETERRENT", use_container_width=True):
         sample_rate = 44100
         t = np.linspace(0, 2, 2 * sample_rate, False)
-        # High-frequency sound for predator deterrent
         note = np.sin(15000 * t * 2 * np.pi) 
         st.audio(note, sample_rate=sample_rate, autoplay=True)
         st.toast("Deterrent Sound Emitted!", icon="🔊")
     
     st.markdown("---")
     st.subheader("🚀 Quick Navigation")
-    if st.button("📍 Sightings Map"): st.switch_page("pages/5_Sightings_Map.py")
-    if st.button("🔍 Species Guide"): st.switch_page("pages/8_Species_Guide.py")
-    if st.button("📕 My Pokédex"): st.switch_page("pages/7_Pokedex.py")
-    if st.button("📓 Field Notes"): st.switch_page("pages/9_Field_Notes.py")
+    # Updated Page list matching your folder structure
+    if st.button("📍 Sightings Map", use_container_width=True): st.switch_page("pages/5_Sightings_Map.py")
+    if st.button("🔍 Species Guide", use_container_width=True): st.switch_page("pages/8_Species_Guide.py")
+    if st.button("📕 My Pokédex", use_container_width=True): st.switch_page("pages/7_Pokedex.py")
+    if st.button("📓 Field Notes", use_container_width=True): st.switch_page("pages/9_Field_Notes.py")
+    
+    # NEW: Report & QR Tool Link
+    if st.button("📊 Ecology Report Tools", use_container_width=True): 
+        st.switch_page("pages/10_Generate_Report.py")
 
-# --- MAIN INTERFACE ---
-st.title(f"🌿 Sentinel Hub: {st.session_state.get('user', 'Ranger Wolf')}")
-img = st.camera_input("Scan Wildlife for ID")
+# --- MAIN DASHBOARD ---
+col_logo, col_title = st.columns([1, 5])
+with col_logo:
+    st.image("https://cdn-icons-png.flaticon.com/512/3062/3062250.png", width=80)
+with col_title:
+    st.title("🛡️ Sentinel Alpha Command")
 
-species_detected = "Waiting for scan..."
-
-if img:
-    try:
-        genai.configure(api_key=st.secrets["gemini"]["api_key"])
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        res = model.generate_content(["ID species and 1 ecology fact.", img]).text
-        species_detected = res.split('\n')[0].replace("**", "").strip()
-        
-        # Priority Alert for Endangered Species
-        if any(crit in species_detected for crit in ["Bongo", "Rhino", "Elephant", "Crane"]):
-            st.error(f"🚨 PRIORITY ALERT: {species_detected} Detected!")
-            st.balloons()
-        
-        st.write(res)
-    except Exception as e:
-        st.warning("Scanner warming up... Please check API key in secrets.")
-
-# --- COMMUNITY TICKER ---
-st.markdown(f"""<div class="ticker-wrap"><div class="ticker">
-    LIVE FEED: Ranger Wolf logged a {species_detected} • Angela spotted a Lion near Maasai Mara • Weather: 24°C Sunny • Drone Status: Ready for Flight
-    </div></div>""", unsafe_allow_html=True)
+# Live Metrics Bar
+m1, m2, m3 = st.columns(3)
+m1.metric("Date
