@@ -26,16 +26,13 @@ with st.container(border=True):
     c1, c2 = st.columns(2)
     with c1:
         if st.button("Unlock Portal", use_container_width=True, type="primary"):
-            
-            # --- EMERGENCY ADMIN BYPASS (NO HASHING) ---
-            # This will work even if the database is dead
+            # EMERGENCY ADMIN BYPASS
             if u_in.lower() == "wolf" and p_in == "WolfAdmin@2026":
                 st.session_state.auth = True
                 st.session_state.user = "Wolf (Admin)"
-                st.success("Admin Bypass Successful!")
-                st.switch_page("pages/3_🌿_Sentinel_Hub.py")
+                # UPDATED PATH: No emojis to prevent the API Exception
+                st.switch_page("pages/3_Sentinel_Hub.py")
             
-            # --- REGULAR USER LOGIN ---
             else:
                 try:
                     with get_engine().connect() as conn:
@@ -43,15 +40,13 @@ with st.container(border=True):
                         if res and res[0] == hash_pw(p_in):
                             st.session_state.auth = True
                             st.session_state.user = u_in
-                            st.switch_page("pages/3_🌿_Sentinel_Hub.py")
+                            st.switch_page("pages/3_Sentinel_Hub.py")
                         else: 
-                            st.error("Access Denied: Check your Key.")
+                            st.error("Access Denied.")
                 except: 
                     st.error("Database is warming up... try again in 10s")
                 
     with c2:
         if st.button("Join the Pride", use_container_width=True):
-            try:
-                st.switch_page("pages/1_✨_Join_Pride.py")
-            except:
-                st.error("Path Error: Ensure pages/1_✨_Join_Pride.py exists on GitHub.")
+            # UPDATED PATH
+            st.switch_page("pages/1_Join_Pride.py")
